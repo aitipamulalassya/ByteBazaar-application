@@ -1,18 +1,28 @@
-const mysql = require("mysql2");
+const sql = require("mssql");
 
-const db = mysql.createPool({
-  host: process.env.DB_HOST,
+const config = {
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
+  server: process.env.DB_HOST,
   database: process.env.DB_NAME,
-});
-db.getConnection((err, connection) => {
-  if (err) {
-    console.log("DB Error:", err.message);
-  } else {
-    console.log("MySQL Connected");
-    connection.release();
-  }
-});
+  options: {
+    encrypt: true,
+    trustServerCertificate: false,
+  },
+};
 
-module.exports = db.promise();
+const poolPromise = new sql.ConnectionPool(config)
+  .connect()
+  .then((pool) => {
+    console.log("Azure SQL Connected");
+    return pool;
+  })
+  .catch((err) => {
+    console.error("Database Connection Failed:", err.message);
+    throw err;
+  });
+
+module.exports = {
+  sql,
+  poolPromise,
+};
