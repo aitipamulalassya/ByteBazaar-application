@@ -1,5 +1,6 @@
 import type { Product } from "@/types";
 import { Button } from "@/components/ui/button";
+
 import {
   Pencil,
   Trash2,
@@ -54,7 +55,7 @@ export function ProductCard({
       <div className="bg-muted relative  overflow-hidden">
         {product.thumbnail_url ? (
           <img
-            src={product.thumbnail_url}
+            src={`${import.meta.env.VITE_API_URL}/api/products/${product.id}/assets/thumbnail`}
             alt={product.name}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />

@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from "react";
 import type { Product, ProductFileType } from "@/types";
 
@@ -19,31 +20,58 @@ interface Props {
 
 export function ProductViewer({ product, onClose }: Props) {
   const [textContent, setTextContent] = useState("");
-console.log("Viewer Product:", product);
+
+  const apiBase = import.meta.env.VITE_API_URL;
+
+  // Build URLs only when a product is selected.
+  const thumbnailUrl = product
+    ? `${apiBase}/api/products/${product.id}/assets/thumbnail`
+    : "";
+
+  const fileUrl = product
+    ? `${apiBase}/api/products/${product.id}/assets/file`
+    : "";
+
+  const downloadUrl = product
+    ? `${fileUrl}?download=1`
+    : "";
+
   const previewType = useMemo<ProductFileType>(() => {
     const fileType = product?.file_type?.toLowerCase() ?? "";
-    const fileUrl = product?.file_url?.toLowerCase() ?? "";
+    const originalUrl = product?.file_url?.toLowerCase() ?? "";
 
-    if (fileType.includes("pdf") || /\.pdf(?:$|[?#])/.test(fileUrl)) return "pdf";
+    if (fileType.includes("pdf") || /\.pdf(?:$|[?#])/.test(originalUrl)) {
+      return "pdf";
+    }
+
     if (fileType.includes("image")) return "image";
     if (fileType.includes("video")) return "video";
-    if (fileType.includes("text") || fileType.includes("json")) return "text";
+    if (fileType.includes("text") || fileType.includes("json")) {
+      return "text";
+    }
 
     return "other";
   }, [product?.file_type, product?.file_url]);
-useEffect(() => {
-  console.log("PRODUCT:", product);
-}, [product]);
+
   useEffect(() => {
     const controller = new AbortController();
 
-    if (product && previewType === "text" && product.file_url) {
+    if (product && previewType === "text") {
       setTextContent("Loading...");
-      fetch(product.file_url, { signal: controller.signal })
-        .then((res) => res.text())
+
+      fetch(fileUrl, { signal: controller.signal })
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error("Failed to load file");
+          }
+          return res.text();
+        })
         .then(setTextContent)
         .catch((error: unknown) => {
-          if (!(error instanceof DOMException && error.name === "AbortError")) {
+          if (
+            !(error instanceof DOMException &&
+              error.name === "AbortError")
+          ) {
             setTextContent("Unable to load text file.");
           }
         });
@@ -52,12 +80,15 @@ useEffect(() => {
     }
 
     return () => controller.abort();
-  }, [previewType, product]);
+  }, [product?.id, previewType, fileUrl]);
 
   if (!product) return null;
 
   return (
-    <Dialog open={!!product} onOpenChange={(open) => !open && onClose()}>
+    <Dialog
+      open={!!product}
+      onOpenChange={(open) => !open && onClose()}
+    >
       <DialogContent className="max-w-4xl overflow-hidden p-0">
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle>{product.name}</DialogTitle>
@@ -70,7 +101,7 @@ useEffect(() => {
           {/* Image */}
           {previewType === "image" && (
             <img
-              src={product.file_url}
+              src={fileUrl}
               alt={product.name}
               className="mx-auto block max-h-[70vh] object-contain"
             />
@@ -81,14 +112,14 @@ useEffect(() => {
             <video
               controls
               className="mx-auto block max-h-[70vh] w-full"
-              src={product.file_url}
+              src={fileUrl}
             />
           )}
 
           {/* PDF */}
           {previewType === "pdf" && (
             <iframe
-              src={product.file_url}
+              src={fileUrl}
               title={product.name}
               className="h-[70vh] w-full"
             />
@@ -101,7 +132,7 @@ useEffect(() => {
             </pre>
           )}
 
-          {/* Other Files */}
+          {/* Other files */}
           {previewType === "other" && (
             <div className="flex flex-col items-center justify-center gap-3 p-16 text-center">
               <File className="h-16 w-16 text-muted-foreground" />
@@ -115,7 +146,7 @@ useEffect(() => {
         <div className="flex justify-end gap-2 border-t bg-background px-6 py-3">
           <Button variant="outline" size="sm" asChild>
             <a
-              href={product.file_url}
+              href={fileUrl}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -125,12 +156,7 @@ useEffect(() => {
           </Button>
 
           <Button size="sm" asChild>
-            <a
-              href={product.file_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              download
-            >
+            <a href={downloadUrl}>
               <Download className="mr-1.5 h-4 w-4" />
               Download
             </a>
