@@ -1,33 +1,33 @@
-const { sql, poolPromise } = require("../config/db");
 
+const { sql, poolPromise } = require("../config/db");
+const upload = require("../middlewares/upload");
+
+// Get all products
 exports.getProducts = async (req, res) => {
   try {
     const pool = await poolPromise;
 
-    const result = await pool
-      .request()
-      .query(`
-        SELECT
-          p.*,
-          u.username
-        FROM products p
-        JOIN users u
-          ON p.created_by = u.id
-        ORDER BY p.created_at DESC
-      `);
+    const result = await pool.request().query(`
+      SELECT
+        p.*,
+        u.username
+      FROM products p
+      JOIN users u
+        ON p.created_by = u.id
+      ORDER BY p.created_at DESC
+    `);
 
     res.json(result.recordset);
-
   } catch (err) {
-    console.error(err);
+    console.error("Get Products Error:", err);
 
     res.status(500).json({
-      message: err.message,
+      message: "Failed to retrieve products",
     });
   }
 };
 
-
+// Get a product by ID
 exports.getProductById = async (req, res) => {
   try {
     const pool = await poolPromise;
@@ -41,44 +41,48 @@ exports.getProductById = async (req, res) => {
         WHERE id = @id
       `);
 
-    const products = result.recordset;
-
-    if (products.length === 0) {
+    if (result.recordset.length === 0) {
       return res.status(404).json({
         message: "Product not found",
       });
     }
 
-    res.json(products[0]);
-
+    res.json(result.recordset[0]);
   } catch (err) {
-    console.error(err);
+    console.error("Get Product Error:", err);
 
     res.status(500).json({
-      message: err.message,
+      message: "Failed to retrieve product",
     });
   }
 };
 
-
+// Create a product
 exports.createProduct = async (req, res) => {
-  console.log("=== CREATE PRODUCT CONTROLLER ===");
-
   try {
     const { name, description } = req.body;
 
-    const thumbnail =
-      req.files?.thumbnail?.[0];
-
-    const productFile =
-      req.files?.productFile?.[0];
+    const thumbnail = req.files?.thumbnail?.[0];
+    const productFile = req.files?.productFile?.[0];
 
     if (!thumbnail || !productFile) {
       return res.status(400).json({
-        message:
-          "Thumbnail and product file are required",
+        message: "Thumbnail and product file are required",
       });
     }
+
+    if (!name || !description) {
+      return res.status(400).json({
+        message: "Name and description are required",
+      });
+    }
+
+    // Upload both files to Azure Blob Storage
+    const thumbnailUpload =
+      await upload.uploadToAzure(thumbnail);
+
+    const productFileUpload =
+      await upload.uploadToAzure(productFile);
 
     const pool = await poolPromise;
 
@@ -90,22 +94,22 @@ exports.createProduct = async (req, res) => {
       .input(
         "thumbnail_url",
         sql.VarChar,
-        thumbnail.path
+        thumbnailUpload.url
       )
       .input(
         "thumbnail_public_id",
         sql.VarChar,
-        thumbnail.filename
+        thumbnailUpload.blobName
       )
       .input(
         "file_url",
         sql.VarChar,
-        productFile.path
+        productFileUpload.url
       )
       .input(
         "file_public_id",
         sql.VarChar,
-        productFile.filename
+        productFileUpload.blobName
       )
       .input(
         "file_type",
@@ -161,33 +165,25 @@ exports.createProduct = async (req, res) => {
         WHERE id = @id
       `);
 
-    res.status(201).json(
-      productResult.recordset[0]
-    );
-
+    res.status(201).json(productResult.recordset[0]);
   } catch (err) {
-    console.error("Create Product Error:", err);
-    console.error("Body:", req.body);
-    console.error("Files:", req.files);
+    // Avoid logging uploaded file contents or credentials.
+    console.error("Create Product Error:", err.message);
 
     res.status(500).json({
-      message: err.message,
+      message: "Failed to create product",
     });
   }
 };
 
-
+// Update a product
 exports.updateProduct = async (req, res) => {
   try {
-    const id = req.params.id;
-
+    const id = Number(req.params.id);
     const { name, description } = req.body;
 
-    const thumbnail =
-      req.files?.thumbnail?.[0];
-
-    const productFile =
-      req.files?.productFile?.[0];
+    const thumbnail = req.files?.thumbnail?.[0];
+    const productFile = req.files?.productFile?.[0];
 
     const pool = await poolPromise;
 
@@ -200,15 +196,22 @@ exports.updateProduct = async (req, res) => {
         WHERE id = @id
       `);
 
-    const existing = existingResult.recordset;
-
-    if (existing.length === 0) {
+    if (existingResult.recordset.length === 0) {
       return res.status(404).json({
         message: "Product not found",
       });
     }
 
-    const current = existing[0];
+    const current = existingResult.recordset[0];
+
+    // Upload replacement files only when supplied
+    const thumbnailUpload = thumbnail
+      ? await upload.uploadToAzure(thumbnail)
+      : null;
+
+    const productFileUpload = productFile
+      ? await upload.uploadToAzure(productFile)
+      : null;
 
     await pool
       .request()
@@ -225,37 +228,34 @@ exports.updateProduct = async (req, res) => {
       .input(
         "thumbnail_url",
         sql.VarChar,
-        thumbnail?.path ?? current.thumbnail_url
+        thumbnailUpload?.url ?? current.thumbnail_url
       )
       .input(
         "thumbnail_public_id",
         sql.VarChar,
-        thumbnail?.filename ??
+        thumbnailUpload?.blobName ??
           current.thumbnail_public_id
       )
       .input(
         "file_url",
         sql.VarChar,
-        productFile?.path ??
-          current.file_url
+        productFileUpload?.url ?? current.file_url
       )
       .input(
         "file_public_id",
         sql.VarChar,
-        productFile?.filename ??
+        productFileUpload?.blobName ??
           current.file_public_id
       )
       .input(
         "file_type",
         sql.VarChar,
-        productFile?.mimetype ??
-          current.file_type
+        productFile?.mimetype ?? current.file_type
       )
       .input(
         "file_size",
         sql.Int,
-        productFile?.size ??
-          current.file_size
+        productFile?.size ?? current.file_size
       )
       .input("id", sql.Int, id)
       .query(`
@@ -282,20 +282,35 @@ exports.updateProduct = async (req, res) => {
       `);
 
     res.json(updatedResult.recordset[0]);
-
   } catch (err) {
-    console.error(err);
+    console.error("Update Product Error:", err.message);
 
     res.status(500).json({
-      message: err.message,
+      message: "Failed to update product",
     });
   }
 };
 
-
+// Delete a product
 exports.deleteProduct = async (req, res) => {
   try {
     const pool = await poolPromise;
+
+    // Look up blob names before deleting the database row.
+    const existingResult = await pool
+      .request()
+      .input("id", sql.Int, req.params.id)
+      .query(`
+        SELECT id, thumbnail_public_id, file_public_id
+        FROM products
+        WHERE id = @id
+      `);
+
+    if (existingResult.recordset.length === 0) {
+      return res.status(404).json({
+        message: "Product not found",
+      });
+    }
 
     await pool
       .request()
@@ -308,12 +323,11 @@ exports.deleteProduct = async (req, res) => {
     res.json({
       success: true,
     });
-
   } catch (err) {
-    console.error(err);
+    console.error("Delete Product Error:", err.message);
 
     res.status(500).json({
-      message: err.message,
+      message: "Failed to delete product",
     });
   }
 };
