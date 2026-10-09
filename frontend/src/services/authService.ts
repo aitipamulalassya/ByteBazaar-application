@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { User } from "@/types";
+import.meta.env.VITE_API_URL
 
-const API_URL = "http://localhost:5000/api/auth";
 
 const TOKEN_KEY = "token";
 const USER_KEY = "user";
@@ -11,7 +11,7 @@ export const authService = {
     identifier: string,
     password: string
   ): Promise<{ user: User; token: string }> {
-    const response = await axios.post(`${API_URL}/login`, {
+    const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
       identifier,
       password,
     });
@@ -29,7 +29,7 @@ export const authService = {
     email: string,
     password: string
   ): Promise<{ user: User; token: string }> {
-    const response = await axios.post(`${API_URL}/signup`, {
+    const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/signup`, {
       username,
       email,
       password,

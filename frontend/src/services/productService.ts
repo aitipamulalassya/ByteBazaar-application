@@ -1,15 +1,15 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/api/products";
+
 
 export const productService = {
   async getProducts() {
-    const res = await axios.get(API_URL);
+    const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/products`);
     return res.data;
   },
 
   async getProductById(id: number) {
-    const res = await axios.get(`${API_URL}/${id}`);
+    const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/products/${id}`);
     return res.data;
   },
 
@@ -17,7 +17,7 @@ export const productService = {
     const token = localStorage.getItem("token");
 
     try {
-  const res = await axios.post(API_URL, formData, {
+  const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/products`, formData, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -41,7 +41,7 @@ export const productService = {
     const token = localStorage.getItem("token");
 
     const res = await axios.put(
-      `${API_URL}/${id}`,
+      `${import.meta.env.VITE_API_URL}/api/products/${id}`,
       formData,
       {
         headers: {
@@ -57,7 +57,7 @@ export const productService = {
     const token = localStorage.getItem("token");
 
     return axios.delete(
-      `${API_URL}/${id}`,
+      `${import.meta.env.VITE_API_URL}/api/products/${id}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
