@@ -19,35 +19,40 @@ const blobServiceClient = new BlobServiceClient(
   credential
 );
 
-const containerClient = blobServiceClient.getContainerClient(containerName);
-
-const storage = multer.memoryStorage();
+const containerClient =
+  blobServiceClient.getContainerClient(containerName);
 
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50 MB maximum
+    fileSize: 50 * 1024 * 1024,
   },
 });
 
 upload.uploadToAzure = async (file) => {
-  const blobName = `${Date.now()}-${file.originalname.replace(
+  const safeName = file.originalname.replace(
     /[^a-zA-Z0-9._-]/g,
     "_"
-  )}`;
+  );
 
-  const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+  const blobName = `${Date.now()}-${require("crypto").randomUUID()}-${safeName}`;
 
-  await blockBlobClient.uploadData(file.buffer, {
+  const blobClient = containerClient.getBlockBlobClient(blobName);
+
+  await blobClient.uploadData(file.buffer, {
     blobHTTPHeaders: {
       blobContentType: file.mimetype,
     },
   });
 
   return {
-    url: blockBlobClient.url,
+    url: blobClient.url,
     blobName,
   };
 };
+
+// Used by the backend to read files from private Blob Storage.
+upload.getBlobClient = (blobName) =>
+  containerClient.getBlobClient(blobName);
 
 module.exports = upload;

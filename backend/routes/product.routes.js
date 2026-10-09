@@ -7,6 +7,7 @@ const upload = require("../middlewares/upload"); // <-- add
 const {
   getProducts,
   getProductById,
+  getProductAsset,
   createProduct,
   updateProduct,
   deleteProduct,
@@ -14,7 +15,7 @@ const {
 
 router.get("/", getProducts);
 router.get("/:id", getProductById);
-
+router.get("/:id/assets/:asset", getProductAsset);
 router.post(
   "/",
   auth,
