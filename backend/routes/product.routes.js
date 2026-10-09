@@ -14,8 +14,9 @@ const {
 } = require("../controllers/product.controller");
 
 router.get("/", getProducts);
-router.get("/:id", getProductById);
 router.get("/:id/assets/:asset", getProductAsset);
+router.get("/:id", getProductById);
+
 router.post(
   "/",
   auth,
